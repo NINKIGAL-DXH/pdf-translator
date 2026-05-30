@@ -19,7 +19,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc rumps pyobjc-framework-Cocoa
+          python -m pip install flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc
 
       - name: Create .app bundle
         run: |
@@ -30,15 +30,12 @@ jobs:
           mkdir -p "$APP/Contents/Resources/app/static"
           mkdir -p "$APP/Contents/Resources/app/pdf2zh"
           
-          # Copy app files
-          cp mac_app.py "$APP/Contents/Resources/app/mac_app.py"
-          cp app.py "$APP/Contents/Resources/app/app.py"
-          cp gui_app.py "$APP/Contents/Resources/app/gui_app.py"
+          cp app.py "$APP/Contents/Resources/app/"
+          cp gui_app.py "$APP/Contents/Resources/app/"
           cp -r templates/* "$APP/Contents/Resources/app/templates/" 2>/dev/null || true
           cp -r static/* "$APP/Contents/Resources/app/static/" 2>/dev/null || true
           cp -r pdf2zh/* "$APP/Contents/Resources/app/pdf2zh/" 2>/dev/null || true
           
-          # Info.plist
           cat > "$APP/Contents/Info.plist" << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -60,13 +57,11 @@ jobs:
               <string>APPL</string>
               <key>NSHighResolutionCapable</key>
               <true/>
-              <key>LSUIElement</key>
-              <true/>
           </dict>
           </plist>
           EOF
           
-          # Launcher - starts Flask server then menu bar app
+          # Simple launcher: start Flask, open browser
           cat > "$APP/Contents/MacOS/launcher" << 'LAUNCHER'
           #!/bin/bash
           DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -78,23 +73,34 @@ jobs:
           if command -v python3 &> /dev/null; then PYTHON_CMD="python3"
           elif command -v python &> /dev/null; then PYTHON_CMD="python"
           else
-            osascript -e 'display dialog "需要安装 Python 3" buttons {"OK"} default button "OK" with icon stop'
+            osascript -e 'display dialog "需要安装 Python 3\n\nbrew install python" buttons {"OK"} default button "OK" with icon stop'
             exit 1
           fi
           
-          # Auto-install missing deps
-          MISSING=""
-          for pkg in flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc rumps; do
-            imp="$pkg"; [ "$pkg" = "pymupdf" ] && imp="fitz"; [ "$pkg" = "rumps" ] && imp="rumps"
-            $PYTHON_CMD -c "import $imp" 2>/dev/null || MISSING="$MISSING $pkg"
-          done
-          if [ -n "$MISSING" ]; then
-            osascript -e 'display dialog "首次运行，正在安装依赖...\n请稍候" buttons {"OK"} default button "OK" giving up after 3' &
-            pip3 install $MISSING -q 2>/dev/null
+          # If port 5000 already in use, just open browser
+          if lsof -Pi :5000 -sTCP:LISTEN -t >/dev/null 2>&1; then
+            open http://localhost:5000
+            exit 0
           fi
           
+          # Start server
           cd "$APP_DIR"
-          exec $PYTHON_CMD mac_app.py
+          $PYTHON_CMD app.py &
+          SERVER_PID=$!
+          
+          # Wait for server
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -s http://localhost:5000 > /dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          
+          # Open browser
+          open http://localhost:5000
+          
+          # Keep alive
+          wait $SERVER_PID
           LAUNCHER
           chmod +x "$APP/Contents/MacOS/launcher"
 
