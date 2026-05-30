@@ -26,7 +26,6 @@ jobs:
           pyinstaller --noconfirm --onedir --windowed \
             --name "PDF Translator" \
             --add-data "templates:templates" \
-            --add-data "static:static" \
             --add-data "pdf2zh:pdf2zh" \
             --hidden-import flask --hidden-import pymupdf --hidden-import fitz \
             --hidden-import pdf2zh --hidden-import pdf2zh.high_level --hidden-import pdf2zh.translator \
