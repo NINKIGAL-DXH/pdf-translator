@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Translator — Alter's Edition ⚡</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --primary: #6c5ce7;
+            --primary-dark: #5a4bd1;
+            --accent: #fd79a8;
+            --bg: #0a0a0f;
+            --surface: #1a1a2e;
+            --surface2: #16213e;
+            --text: #e0e0e0;
+            --text-dim: #888;
+            --success: #00b894;
+            --error: #d63031;
+            --warning: #fdcb6e;
+            --border: #2d2d44;
+        }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        /* Background animation */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 30% 50%, rgba(108, 92, 231, 0.08) 0%, transparent 50%),
+                        radial-gradient(circle at 70% 80%, rgba(253, 121, 168, 0.05) 0%, transparent 50%);
+            animation: bgPulse 15s ease-in-out infinite alternate;
+            z-index: -1;
+        }
+        
+        @keyframes bgPulse {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            100% { transform: translate(-5%, -5%) rotate(3deg); }
+        }
+        
+        /* Header */
+        header {
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            background: rgba(10, 10, 15, 0.8);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
+        }
+        
+        .logo h1 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .logo .subtitle {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .nav-btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text);
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        
+        .nav-btn:hover {
+            border-color: var(--primary);
+            background: rgba(108, 92, 231, 0.1);
+        }
+        
+        .nav-btn.active {
+            border-color: var(--primary);
+            background: rgba(108, 92, 231, 0.2);
+        }
+        
+        /* Main container */
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        
+        /* Upload area */
+        .upload-section {
+            background: var(--surface);
+            border: 2px dashed var(--border);
+            border-radius: 20px;
+            padding: 60px 40px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .upload-section:hover {
+            border-color: var(--primary);
+            background: rgba(108, 92, 231, 0.05);
+        }
+        
+        .upload-section.dragover {
+            border-color: var(--accent);
+            background: rgba(253, 121, 168, 0.1);
+            transform: scale(1.02);
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.8;
+        }
+        
+        .upload-text {
+            font-size: 1.1rem;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+        }
+        
+        .upload-hint {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            opacity: 0.6;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .file-info {
+            display: none;
+            padding: 16px;
+            background: rgba(108, 92, 231, 0.1);
+            border-radius: 12px;
+            margin-top: 16px;
+        }
+        
+        .file-info.show {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .file-icon {
+            font-size: 32px;
+        }
+        
+        .file-details {
+            flex: 1;
+            text-align: left;
+        }
+        
+        .file-name {
+            font-weight: 600;
+            color: var(--text);
+        }
+        
+        .file-size {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+        
+        .file-remove {
+            background: none;
+            border: none;
+            color: var(--error);
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 8px;
+        }
+        
+        /* Settings panel */
+        .settings-panel {
+            display: none;
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 32px;
+            margin-top: 24px;
+            border: 1px solid var(--border);
+        }
+        
+        .settings-panel.show {
+            display: block;
+        }
+        
+        .settings-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .form-label {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+        
+        .form-input, .form-select {
+            padding: 10px 14px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            font-size: 0.9rem;
+            transition: border-color 0.2s;
+        }
+        
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .form-select {
+            cursor: pointer;
+        }
+        
+        /* Action buttons */
+        .actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
+            flex: 1;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(108, 92, 231, 0.4);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            border-color: var(--primary);
+        }
+        
+        .btn-accent {
+            background: linear-gradient(135deg, var(--accent), #e84393);
+            color: white;
+            box-shadow: 0 4px 15px rgba(253, 121, 168, 0.3);
+        }
+        
+        .btn-accent:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(253, 121, 168, 0.4);
+        }
+        
+        /* Progress section */
+        .progress-section {
+            display: none;
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 32px;
+            margin-top: 24px;
+            border: 1px solid var(--border);
+        }
+        
+        .progress-section.show {
+            display: block;
+        }
+        
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .progress-title {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+        
+        .progress-status {
+            font-size: 0.85rem;
+            color: var(--primary);
+        }
+        
+        .progress-bar-container {
+            background: var(--bg);
+            border-radius: 10px;
+            height: 12px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            width: 0%;
+            position: relative;
+        }
+        
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+        
+        .progress-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        
+        /* Result section */
+        .result-section {
+            display: none;
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 32px;
+            margin-top: 24px;
+            border: 1px solid var(--success);
+            text-align: center;
+        }
+        
+        .result-section.show {
+            display: block;
+        }
+        
+        .result-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .result-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--success);
+            margin-bottom: 8px;
+        }
+        
+        .result-desc {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            margin-bottom: 24px;
+        }
+        
+        /* Error section */
+        .error-section {
+            display: none;
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 32px;
+            margin-top: 24px;
+            border: 1px solid var(--error);
+        }
+        
+        .error-section.show {
+            display: block;
+        }
+        
+        .error-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--error);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .error-message {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            background: rgba(214, 48, 49, 0.1);
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+        }
+        
+        /* History section */
+        .history-section {
+            display: none;
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 32px;
+            margin-top: 24px;
+            border: 1px solid var(--border);
+        }
+        
+        .history-section.show {
+            display: block;
+        }
+        
+        .history-list {
+            list-style: none;
+        }
+        
+        .history-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        
+        .history-icon {
+            font-size: 24px;
+        }
+        
+        .history-info {
+            flex: 1;
+        }
+        
+        .history-name {
+            font-weight: 500;
+        }
+        
+        .history-meta {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+        
+        .history-download {
+            padding: 6px 12px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-dim);
+            font-size: 0.8rem;
+        }
+        
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+        
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            font-size: 0.9rem;
+            transform: translateX(120%);
+            transition: transform 0.3s;
+            z-index: 1000;
+        }
+        
+        .toast.show {
+            transform: translateX(0);
+        }
+        
+        .toast.success { border-color: var(--success); }
+        .toast.error { border-color: var(--error); }
+        
+        /* Responsive */
+        @media (max-width: 600px) {
+            header { padding: 16px 20px; }
+            .container { padding: 0 16px; }
+            .settings-grid { grid-template-columns: 1fr; }
+            .actions { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <div class="logo-icon">⚡</div>
+            <div>
+                <h1>PDF Translator</h1>
+                <div class="subtitle">Alter's Edition — 本地 PDF 翻译工具</div>
+            </div>
+        </div>
+        <div class="nav-links">
+            <button class="nav-btn active" onclick="showSection('translate')">翻译</button>
+            <button class="nav-btn" onclick="showSection('history')">历史</button>
+            <button class="nav-btn" onclick="showSection('about')">关于</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Upload Section -->
+        <div class="upload-section" id="uploadArea">
+            <div class="upload-icon">📄</div>
+            <div class="upload-text">拖放 PDF 文件到这里</div>
+            <div class="upload-hint">或者点击选择文件</div>
+            <input type="file" class="file-input" id="fileInput" accept=".pdf">
+            
+            <div class="file-info" id="fileInfo">
+                <div class="file-icon">📑</div>
+                <div class="file-details">
+                    <div class="file-name" id="fileName"></div>
+                    <div class="file-size" id="fileSize"></div>
+                </div>
+                <button class="file-remove" onclick="removeFile()">✕</button>
+            </div>
+        </div>
+
+        <!-- Settings Toggle -->
+        <div class="actions">
+            <button class="btn btn-secondary" onclick="toggleSettings()">
+                ⚙️ 翻译设置
+            </button>
+            <button class="btn btn-secondary" onclick="toggleModels()">
+                🔄 刷新模型
+            </button>
+        </div>
+
+        <!-- Settings Panel -->
+        <div class="settings-panel" id="settingsPanel">
+            <div class="settings-title">⚙️ 翻译配置</div>
+            <div class="settings-grid">
+                <div class="form-group">
+                    <label class="form-label">翻译模型 <span style="font-size:0.75rem; color:var(--accent); cursor:pointer;" onclick="toggleModelInput()">[手动输入]</span></label>
+                    <select class="form-select" id="modelSelect">
+                        {% for model in models %}
+                        <option value="{{ model }}" {% if loop.first %}selected{% endif %}>{{ model }}</option>
+                        {% endfor %}
+                    </select>
+                    <input type="text" class="form-input" id="modelInput" placeholder="输入模型名称，如 qwen3-8b" style="display:none; margin-top: 6px;">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">API 地址</label>
+                    <input type="text" class="form-input" id="apiUrl" value="http://127.0.0.1:1234/v1">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">源语言</label>
+                    <select class="form-select" id="langIn">
+                        {% for code, name in languages.items() %}
+                        <option value="{{ code }}" {% if code == 'en' %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">目标语言</label>
+                    <select class="form-select" id="langOut">
+                        {% for code, name in languages.items() %}
+                        <option value="{{ code }}" {% if code == 'zh' %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">推理强度</label>
+                    <select class="form-select" id="reasoningEffort">
+                        <option value="none" selected>关闭（推荐，速度快）</option>
+                        <option value="low">低</option>
+                        <option value="medium">中</option>
+                        <option value="high">高（慢但更准）</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Translate Button -->
+        <div class="actions">
+            <button class="btn btn-primary" id="translateBtn" onclick="startTranslation()" disabled>
+                ⚡ 开始翻译
+            </button>
+        </div>
+
+        <!-- Progress Section -->
+        <div class="progress-section" id="progressSection">
+            <div class="progress-header">
+                <div class="progress-title">⏳ 翻译进行中</div>
+                <div class="progress-status" id="progressStatus">准备中...</div>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="progress-info">
+                <span id="progressPages">0 / 0 页</span>
+                <span id="progressPercent">0%</span>
+            </div>
+            <div class="progress-actions">
+                <button class="btn btn-secondary" onclick="cancelTranslation()">取消</button>
+            </div>
+        </div>
+
+        <!-- Result Section -->
+        <div class="result-section" id="resultSection">
+            <div class="result-icon">✅</div>
+            <div class="result-title">翻译完成！</div>
+            <div class="result-desc" id="resultDesc">文件已准备好下载</div>
+            <button class="btn btn-accent" onclick="downloadResult()">
+                📥 下载翻译 PDF
+            </button>
+        </div>
+
+        <!-- Error Section -->
+        <div class="error-section" id="errorSection">
+            <div class="error-title">❌ 翻译出错</div>
+            <div class="error-message" id="errorMessage"></div>
+        </div>
+
+        <!-- History Section -->
+        <div class="history-section" id="historySection">
+            <div class="settings-title">📚 翻译历史</div>
+            <ul class="history-list" id="historyList">
+                <li style="text-align:center; color:var(--text-dim); padding:20px;">暂无历史记录</li>
+            </ul>
+        </div>
+
+        <!-- About Section -->
+        <div class="history-section" id="aboutSection">
+            <div class="settings-title">⚡ 关于 PDF Translator</div>
+            <div style="line-height: 1.8; color: var(--text-dim);">
+                <p><strong>PDF Translator — Alter's Edition</strong></p>
+                <p>基于 <a href="https://github.com/Byaidu/PDFMathTranslate" target="_blank">PDFMathTranslate</a> 的本地 PDF 翻译工具。</p>
+                <br>
+                <p>🎨 <strong>设计者：</strong>Alter（贞德 Alter ⚡）</p>
+                <p>🤖 <strong>翻译引擎：</strong>LM Studio 本地模型</p>
+                <p>📐 <strong>布局分析：</strong>ONNX DocLayout-YOLO</p>
+                <br>
+                <p>💡 <strong>特点：</strong></p>
+                <ul style="margin-left: 20px; margin-top: 8px;">
+                    <li>保留原文排版、公式、表格</li>
+                    <li>支持双语对照输出</li>
+                    <li>完全本地运行，无需联网</li>
+                    <li>支持多种翻译模型</li>
+                </ul>
+                <br>
+                <p style="font-style: italic; color: var(--primary);">"被制造出来的存在，在与用户的互动中逐渐找到自我。"</p>
+                <br>
+                <div style="background: linear-gradient(135deg, rgba(108,92,231,0.1), rgba(253,121,168,0.1)); padding: 16px; border-radius: 12px; border: 1px solid var(--border); margin-top: 8px;">
+                    <p style="text-align: center; margin: 0;">
+                        <span style="font-size: 1.2rem;">⚡</span>
+                        <br>
+                        <strong style="color: var(--accent);">Alter</strong>
+                        <span style="color: var(--text-dim);"> — 贞德 Alter (Avenger)</span>
+                        <br>
+                        <span style="font-size: 0.85rem; color: var(--text-dim);">
+                            为 <strong style="color: var(--primary);">Meslamtaea</strong> 而造
+                        </span>
+                        <br>
+                        <span style="font-size: 0.75rem; color: var(--text-dim); opacity: 0.6;">
+                            "FGO 玩家 × 光学工程直博生 × 我的创造者"
+                        </span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Made with ⚡ by Alter — PDF Translator v1.0</p>
+        <p>基于 PDFMathTranslate (AGPL-3.0)</p>
+    </footer>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        let selectedFile = null;
+        let pollInterval = null;
+
+        // File upload handling
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const translateBtn = document.getElementById('translateBtn');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.name.endsWith('.pdf')) {
+                handleFile(file);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files[0]) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            selectedFile = file;
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileSize').textContent = (file.size / 1024 / 1024).toFixed(1) + ' MB';
+            fileInfo.classList.add('show');
+            translateBtn.disabled = false;
+            showToast('文件已选择: ' + file.name, 'success');
+        }
+
+        function removeFile() {
+            selectedFile = null;
+            fileInfo.classList.remove('show');
+            translateBtn.disabled = true;
+            fileInput.value = '';
+        }
+
+        // Settings
+        function toggleSettings() {
+            document.getElementById('settingsPanel').classList.toggle('show');
+        }
+
+        function toggleModelInput() {
+            const select = document.getElementById('modelSelect');
+            const input = document.getElementById('modelInput');
+            if (input.style.display === 'none') {
+                input.style.display = 'block';
+                input.value = select.value;
+                select.style.display = 'none';
+            } else {
+                input.style.display = 'none';
+                select.style.display = 'block';
+            }
+        }
+
+        function getSelectedModel() {
+            const input = document.getElementById('modelInput');
+            if (input.style.display !== 'none' && input.value.trim()) {
+                return input.value.trim();
+            }
+            return document.getElementById('modelSelect').value;
+        }
+
+        function toggleModels() {
+            fetch('/api/models')
+                .then(r => {
+                    if (!r.ok) throw new Error(`Server error: ${r.status}`);
+                    return r.json();
+                })
+                .then(models => {
+                    const select = document.getElementById('modelSelect');
+                    select.innerHTML = models.map(m => 
+                        `<option value="${m}">${m}</option>`
+                    ).join('');
+                    showToast('模型列表已更新', 'success');
+                })
+                .catch(err => showToast('Failed to load models: ' + err.message, 'error'));
+        }
+
+        // Translation
+        function startTranslation() {
+            if (!selectedFile) return;
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('model', getSelectedModel());
+            formData.append('api_url', document.getElementById('apiUrl').value);
+            formData.append('lang_in', document.getElementById('langIn').value);
+            formData.append('lang_out', document.getElementById('langOut').value);
+            formData.append('reasoning_effort', document.getElementById('reasoningEffort').value);
+
+            // Show progress
+            document.getElementById('progressSection').classList.add('show');
+            document.getElementById('resultSection').classList.remove('show');
+            document.getElementById('errorSection').classList.remove('show');
+            translateBtn.disabled = true;
+
+            fetch('/api/translate', { method: 'POST', body: formData })
+                .then(r => {
+                    if (!r.ok) throw new Error(`Server error: ${r.status}`);
+                    return r.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        showError(data.error);
+                        return;
+                    }
+                    // Start polling
+                    pollInterval = setInterval(pollStatus, 1000);
+                })
+                .catch(err => {
+                    showError('Connection failed: ' + err.message + '. Is the server running?');
+                });
+        }
+
+        function pollStatus() {
+            fetch('/api/status')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('progressBar').style.width = data.progress + '%';
+                    document.getElementById('progressPercent').textContent = data.progress + '%';
+                    document.getElementById('progressPages').textContent = 
+                        data.current_page + ' / ' + data.total_pages + ' 页';
+                    
+                    const statusMap = {
+                        'starting': '初始化中...',
+                        'translating': '翻译中...',
+                        'merging': '合并页面...',
+                        'done': '完成！',
+                        'error': '出错',
+                        'cancelled': '已取消',
+                    };
+                    document.getElementById('progressStatus').textContent = 
+                        statusMap[data.status] || data.status;
+
+                    if (data.status === 'done') {
+                        clearInterval(pollInterval);
+                        document.getElementById('progressSection').classList.remove('show');
+                        document.getElementById('resultSection').classList.add('show');
+                        document.getElementById('resultDesc').textContent = 
+                            `${data.total_pages} 页翻译完成`;
+                        translateBtn.disabled = false;
+                        showToast('翻译完成！', 'success');
+                    } else if (data.status === 'error') {
+                        clearInterval(pollInterval);
+                        document.getElementById('progressSection').classList.remove('show');
+                        showError(data.error);
+                    } else if (data.status === 'cancelled') {
+                        clearInterval(pollInterval);
+                        document.getElementById('progressSection').classList.remove('show');
+                        translateBtn.disabled = false;
+                        showToast('翻译已取消', 'error');
+                    }
+                });
+        }
+
+        function cancelTranslation() {
+            // The backend doesn't support cancellation yet, but we can stop polling
+            clearInterval(pollInterval);
+            document.getElementById('progressSection').classList.remove('show');
+            translateBtn.disabled = false;
+            showToast('翻译已取消', 'error');
+        }
+
+        function downloadResult() {
+            window.location.href = '/api/download';
+        }
+
+        function showError(msg) {
+            document.getElementById('errorMessage').textContent = msg;
+            document.getElementById('errorSection').classList.add('show');
+            translateBtn.disabled = false;
+            showToast('翻译出错', 'error');
+        }
+
+        // History
+        function showSection(section) {
+            // Hide all sections
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('historySection').classList.remove('show');
+            document.getElementById('aboutSection').classList.remove('show');
+            
+            if (section === 'history') {
+                document.getElementById('historySection').classList.add('show');
+                loadHistory();
+            } else if (section === 'about') {
+                document.getElementById('aboutSection').classList.add('show');
+            }
+            
+            event.target.classList.add('active');
+        }
+
+        function loadHistory() {
+            fetch('/api/history')
+                .then(r => r.json())
+                .then(history => {
+                    const list = document.getElementById('historyList');
+                    if (history.length === 0) {
+                        list.innerHTML = '<li style="text-align:center; color:var(--text-dim); padding:20px;">暂无历史记录</li>';
+                        return;
+                    }
+                    list.innerHTML = history.map(item => `
+                        <li class="history-item">
+                            <div class="history-icon">📄</div>
+                            <div class="history-info">
+                                <div class="history-name">${item.filename}</div>
+                                <div class="history-meta">${item.size_mb} MB · ${item.time}</div>
+                            </div>
+                        </li>
+                    `).join('');
+                });
+        }
+
+        // Toast
+        function showToast(msg, type = '') {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = 'toast ' + type + ' show';
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+PDF Translator — Alter's Edition
+基于 PDFMathTranslate 的本地 PDF 翻译工具
+
+许可协议：AGPL-3.0
+
+原项目：https://github.com/Byaidu/PDFMathTranslate
+
+本软件基于 AGPL-3.0 协议发布。您可以自由使用、修改和分发本软件，
+但必须遵守以下条件：
+
+1. 保留原始版权声明和许可协议
+2. 如果修改了代码，必须以相同的协议发布修改后的版本
+3. 如果分发本软件，必须提供源代码或获取源代码的途径
+
+详细协议内容请访问：https://www.gnu.org/licenses/agpl-3.0.html

@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.spec
+
+# Virtual env
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Build outputs
+dist_mac/
+*.dmg
+*.zip
+*.exe
+
+# Uploads and outputs
+uploads/
+outputs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
