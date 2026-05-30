@@ -19,7 +19,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc
+          python -m pip install flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc rumps pyobjc-framework-Cocoa
 
       - name: Create .app bundle
         run: |
@@ -30,12 +30,15 @@ jobs:
           mkdir -p "$APP/Contents/Resources/app/static"
           mkdir -p "$APP/Contents/Resources/app/pdf2zh"
           
-          cp gui_app.py "$APP/Contents/Resources/app/app.py"
-          cp app.py "$APP/Contents/Resources/app/flask_app.py"
+          # Copy app files
+          cp mac_app.py "$APP/Contents/Resources/app/mac_app.py"
+          cp app.py "$APP/Contents/Resources/app/app.py"
+          cp gui_app.py "$APP/Contents/Resources/app/gui_app.py"
           cp -r templates/* "$APP/Contents/Resources/app/templates/" 2>/dev/null || true
           cp -r static/* "$APP/Contents/Resources/app/static/" 2>/dev/null || true
           cp -r pdf2zh/* "$APP/Contents/Resources/app/pdf2zh/" 2>/dev/null || true
           
+          # Info.plist
           cat > "$APP/Contents/Info.plist" << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -57,12 +60,13 @@ jobs:
               <string>APPL</string>
               <key>NSHighResolutionCapable</key>
               <true/>
-              <key>NSRequiresAquaSystemAppearance</key>
-              <false/>
+              <key>LSUIElement</key>
+              <true/>
           </dict>
           </plist>
           EOF
           
+          # Launcher - starts Flask server then menu bar app
           cat > "$APP/Contents/MacOS/launcher" << 'LAUNCHER'
           #!/bin/bash
           DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -78,9 +82,10 @@ jobs:
             exit 1
           fi
           
+          # Auto-install missing deps
           MISSING=""
-          for pkg in flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc; do
-            imp="$pkg"; [ "$pkg" = "pymupdf" ] && imp="fitz"
+          for pkg in flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc rumps; do
+            imp="$pkg"; [ "$pkg" = "pymupdf" ] && imp="fitz"; [ "$pkg" = "rumps" ] && imp="rumps"
             $PYTHON_CMD -c "import $imp" 2>/dev/null || MISSING="$MISSING $pkg"
           done
           if [ -n "$MISSING" ]; then
@@ -89,7 +94,7 @@ jobs:
           fi
           
           cd "$APP_DIR"
-          exec $PYTHON_CMD app.py
+          exec $PYTHON_CMD mac_app.py
           LAUNCHER
           chmod +x "$APP/Contents/MacOS/launcher"
 
