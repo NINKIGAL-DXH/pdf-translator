@@ -11,22 +11,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc
+
       - name: Create .app bundle
         run: |
-          APP_DIR="dist/PDF Translator.app"
-          mkdir -p "$APP_DIR/Contents/MacOS"
-          mkdir -p "$APP_DIR/Contents/Resources/app"
-          mkdir -p "$APP_DIR/Contents/Resources/app/templates"
-          mkdir -p "$APP_DIR/Contents/Resources/app/static"
+          APP="dist/PDF Translator.app"
+          mkdir -p "$APP/Contents/MacOS"
+          mkdir -p "$APP/Contents/Resources/app"
+          mkdir -p "$APP/Contents/Resources/app/templates"
+          mkdir -p "$APP/Contents/Resources/app/static"
+          mkdir -p "$APP/Contents/Resources/app/pdf2zh"
           
           # Copy app files
-          cp app.py "$APP_DIR/Contents/Resources/app/"
-          cp -r templates/* "$APP_DIR/Contents/Resources/app/templates/" 2>/dev/null || true
-          cp -r static/* "$APP_DIR/Contents/Resources/app/static/" 2>/dev/null || true
-          cp -r pdf2zh "$APP_DIR/Contents/Resources/app/"
+          cp gui_app.py "$APP/Contents/Resources/app/app.py"
+          cp app.py "$APP/Contents/Resources/app/flask_app.py"
+          cp -r templates/* "$APP/Contents/Resources/app/templates/" 2>/dev/null || true
+          cp -r static/* "$APP/Contents/Resources/app/static/" 2>/dev/null || true
+          cp -r pdf2zh/* "$APP/Contents/Resources/app/pdf2zh/" 2>/dev/null || true
           
-          # Create Info.plist
-          cat > "$APP_DIR/Contents/Info.plist" << 'EOF'
+          # Info.plist
+          cat > "$APP/Contents/Info.plist" << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -47,12 +54,14 @@ jobs:
               <string>APPL</string>
               <key>NSHighResolutionCapable</key>
               <true/>
+              <key>NSRequiresAquaSystemAppearance</key>
+              <false/>
           </dict>
           </plist>
           EOF
           
-          # Create launcher script
-          cat > "$APP_DIR/Contents/MacOS/launcher" << 'LAUNCHER'
+          # Launcher script
+          cat > "$APP/Contents/MacOS/launcher" << 'LAUNCHER'
           #!/bin/bash
           DIR="$(cd "$(dirname "$0")/.." && pwd)"
           APP_DIR="$DIR/Resources/app"
@@ -63,38 +72,34 @@ jobs:
           if command -v python3 &> /dev/null; then PYTHON_CMD="python3"
           elif command -v python &> /dev/null; then PYTHON_CMD="python"
           else
-            osascript -e 'display dialog "需要安装 Python" buttons {"OK"} default button "OK" with icon stop'
+            osascript -e 'display dialog "需要安装 Python 3" buttons {"OK"} default button "OK" with icon stop'
             exit 1
           fi
           
-          # Auto-install missing deps
+          # Auto-install missing deps silently
+          MISSING=""
           for pkg in flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc; do
-            import_name="$pkg"
-            [ "$pkg" = "pymupdf" ] && import_name="fitz"
-            $PYTHON_CMD -c "import $import_name" 2>/dev/null || pip3 install "$pkg" -q 2>/dev/null
+            imp="$pkg"; [ "$pkg" = "pymupdf" ] && imp="fitz"
+            $PYTHON_CMD -c "import $imp" 2>/dev/null || MISSING="$MISSING $pkg"
           done
-          
-          # Check port
-          if lsof -Pi :5000 -sTCP:LISTEN -t >/dev/null 2>&1; then
-            osascript -e 'display dialog "端口 5000 被占用" buttons {"OK"} default button "OK" with icon stop'
-            exit 1
+          if [ -n "$MISSING" ]; then
+            osascript -e 'display dialog "首次运行，正在安装依赖...\n请稍候（约1-2分钟）" buttons {"OK"} default button "OK" giving up after 3' &
+            pip3 install $MISSING -q 2>/dev/null
           fi
           
-          sleep 2
-          open http://localhost:5000 &
           cd "$APP_DIR"
           exec $PYTHON_CMD app.py
           LAUNCHER
-          chmod +x "$APP_DIR/Contents/MacOS/launcher"
+          chmod +x "$APP/Contents/MacOS/launcher"
 
       - name: Create DMG
         run: |
-          DMG_DIR="dmg_staging"
-          rm -rf "$DMG_DIR"
-          mkdir -p "$DMG_DIR"
-          cp -r "dist/PDF Translator.app" "$DMG_DIR/"
-          ln -sf /Applications "$DMG_DIR/Applications"
-          hdiutil create -volname "PDF Translator" -srcfolder "$DMG_DIR" -ov -format UDZO "PDF-Translator-macOS.dmg"
+          STAGING="dmg_staging"
+          rm -rf "$STAGING"
+          mkdir -p "$STAGING"
+          cp -r "dist/PDF Translator.app" "$STAGING/"
+          ln -sf /Applications "$STAGING/Applications"
+          hdiutil create -volname "PDF Translator" -srcfolder "$STAGING" -ov -format UDZO "PDF-Translator-macOS.dmg"
 
       - name: Upload DMG
         uses: actions/upload-artifact@v4
