@@ -16,126 +16,54 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install all dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install \
-            flask pymupdf openai requests tqdm tenacity \
-            numpy onnxruntime babeldoc \
-            pyinstaller
+          python -m pip install flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc pyinstaller
 
-      - name: Build with PyInstaller
+      - name: Build
         run: |
           cd pdf_translator_app
-          pyinstaller \
+          pyinstaller --noconfirm --onedir --windowed \
             --name "PDF Translator" \
-            --windowed \
-            --onedir \
-            --noconfirm \
             --add-data "templates:templates" \
             --add-data "static:static" \
             --add-data "pdf2zh:pdf2zh" \
-            --hidden-import flask \
-            --hidden-import werkzeug \
-            --hidden-import jinja2 \
-            --hidden-import markupsafe \
-            --hidden-import click \
-            --hidden-import itsdangerous \
-            --hidden-import pymupdf \
-            --hidden-import fitz \
-            --hidden-import pdf2zh \
-            --hidden-import pdf2zh.high_level \
-            --hidden-import pdf2zh.translator \
-            --hidden-import pdf2zh.converter \
-            --hidden-import pdf2zh.doclayout \
-            --hidden-import pdf2zh.config \
-            --hidden-import pdf2zh.cache \
-            --hidden-import pdf2zh.pdfinterp \
-            --hidden-import pdf2zh.backend \
-            --hidden-import pdf2zh.kernel \
-            --hidden-import pdf2zh.kernel.legacy \
-            --hidden-import pdf2zh.kernel.precise \
-            --hidden-import pdf2zh.kernel.protocol \
-            --hidden-import pdf2zh.kernel.registry \
-            --hidden-import pdf2zh.pdf2zh \
-            --hidden-import babeldoc \
-            --hidden-import babeldoc.assets \
-            --hidden-import babeldoc.assets.assets \
-            --hidden-import onnxruntime \
-            --hidden-import numpy \
-            --hidden-import openai \
-            --hidden-import requests \
-            --hidden-import tqdm \
-            --hidden-import tenacity \
-            --hidden-import cv2 \
-            --hidden-import PIL \
-            --hidden-import PIL.Image \
-            --hidden-import skimage \
-            --hidden-import sklearn \
-            --hidden-import scipy \
-            --exclude-module tkinter \
-            --exclude-module matplotlib \
-            --exclude-module notebook \
-            --exclude-module jupyter \
-            --exclude-module IPython \
+            --hidden-import flask --hidden-import pymupdf --hidden-import fitz \
+            --hidden-import pdf2zh --hidden-import pdf2zh.high_level --hidden-import pdf2zh.translator \
+            --hidden-import pdf2zh.converter --hidden-import pdf2zh.doclayout --hidden-import pdf2zh.config \
+            --hidden-import pdf2zh.cache --hidden-import pdf2zh.pdfinterp --hidden-import pdf2zh.backend \
+            --hidden-import pdf2zh.kernel --hidden-import pdf2zh.pdf2zh \
+            --hidden-import babeldoc --hidden-import babeldoc.assets --hidden-import babeldoc.assets.assets \
+            --hidden-import onnxruntime --hidden-import numpy --hidden-import openai \
+            --hidden-import requests --hidden-import tqdm --hidden-import tenacity \
+            --hidden-import cv2 --hidden-import PIL --hidden-import PIL.Image \
+            --exclude-module tkinter --exclude-module matplotlib \
             main.py
 
-      - name: Create .app bundle
+      - name: Package .app
         run: |
-          # PyInstaller creates dist/PDF Translator/ (onedir)
-          # Wrap it in a .app structure
           APP="dist/PDF Translator.app"
-          PYINSTALLER_DIR="pdf_translator_app/dist/PDF Translator"
-          
-          mkdir -p "$APP/Contents/MacOS"
-          mkdir -p "$APP/Contents/Resources"
-          
-          # Move PyInstaller output into .app
-          cp -r "$PYINSTALLER_DIR/"* "$APP/Contents/MacOS/"
-          
-          # Copy templates and static into MacOS dir (where the exe looks for them)
-          cp -r pdf_translator_app/templates "$APP/Contents/MacOS/" 2>/dev/null || true
-          cp -r pdf_translator_app/static "$APP/Contents/MacOS/" 2>/dev/null || true
-          cp -r pdf_translator_app/pdf2zh "$APP/Contents/MacOS/" 2>/dev/null || true
-          
-          # Info.plist
+          SRC="pdf_translator_app/dist/PDF Translator"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          cp -r "$SRC/"* "$APP/Contents/MacOS/"
           cat > "$APP/Contents/Info.plist" << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleName</key>
-              <string>PDF Translator</string>
-              <key>CFBundleDisplayName</key>
-              <string>PDF Translator</string>
-              <key>CFBundleIdentifier</key>
-              <string>com.alter.pdftranslator</string>
-              <key>CFBundleVersion</key>
-              <string>1.0.0</string>
-              <key>CFBundleShortVersionString</key>
-              <string>1.0.0</string>
-              <key>CFBundleExecutable</key>
-              <string>PDF Translator</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-              <key>NSHighResolutionCapable</key>
-              <true/>
-          </dict>
-          </plist>
+          <plist version="1.0"><dict>
+          <key>CFBundleName</key><string>PDF Translator</string>
+          <key>CFBundleExecutable</key><string>PDF Translator</string>
+          <key>CFBundlePackageType</key><string>APPL</string>
+          <key>NSHighResolutionCapable</key><true/>
+          </dict></plist>
           EOF
 
-      - name: Create DMG
+      - name: DMG
         run: |
-          STAGING="dmg_staging"
-          rm -rf "$STAGING"
-          mkdir -p "$STAGING"
-          cp -r "dist/PDF Translator.app" "$STAGING/"
-          ln -sf /Applications "$STAGING/Applications"
-          hdiutil create -volname "PDF Translator" -srcfolder "$STAGING" -ov -format UDZO "PDF-Translator-macOS.dmg"
+          mkdir -p dmg && cp -r "dist/PDF Translator.app" dmg/ && ln -sf /Applications dmg/Applications
+          hdiutil create -volname "PDF Translator" -srcfolder dmg -ov -format UDZO PDF-Translator-macOS.dmg
 
-      - name: Upload DMG
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: PDF-Translator-macOS
           path: PDF-Translator-macOS.dmg
-          retention-days: 90
