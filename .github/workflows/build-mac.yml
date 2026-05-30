@@ -1,0 +1,160 @@
+# ============================================================
+# GitHub Actions: 在 macOS 上自动构建 DMG
+# 
+# 使用方法：
+# 1. 在 GitHub 上创建一个仓库（比如 pdf-translator）
+# 2. 把 pdf_translator_app 的所有文件推上去
+# 3. 把这个文件放到 .github/workflows/build-mac.yml
+# 4. push 代码，Actions 会自动构建 DMG
+# 5. 在 Actions → Artifacts 里下载 DMG
+# ============================================================
+
+name: Build macOS DMG
+
+on:
+  # 手动触发（在 GitHub 页面点 Run workflow）
+  workflow_dispatch:
+  
+  # push 到 main 时触发
+  push:
+    branches: [main]
+
+jobs:
+  build-dmg:
+    runs-on: macos-latest  # GitHub 提供的 macOS runner（免费）
+    
+    steps:
+      # 1. 拉取代码
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. 安装 Python
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # 3. 安装依赖
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            flask \
+            pymupdf \
+            openai \
+            requests \
+            tqdm \
+            tenacity \
+            numpy \
+            onnxruntime \
+            babeldoc \
+            pyinstaller
+
+      # 4. 用 PyInstaller 打包成独立可执行文件
+      - name: Build with PyInstaller
+        run: |
+          cd pdf_translator_app
+          pyinstaller \
+            --name "PDF Translator" \
+            --windowed \
+            --onedir \
+            --add-data "templates:templates" \
+            --add-data "static:static" \
+            --add-data "pdf2zh:pdf2zh" \
+            --hidden-import flask \
+            --hidden-import pymupdf \
+            --hidden-import pdf2zh \
+            --hidden-import pdf2zh.high_level \
+            --hidden-import pdf2zh.translator \
+            --hidden-import pdf2zh.converter \
+            --hidden-import pdf2zh.doclayout \
+            --hidden-import babeldoc \
+            --hidden-import babeldoc.assets \
+            --hidden-import babeldoc.assets.assets \
+            --hidden-import onnxruntime \
+            --hidden-import numpy \
+            --hidden-import openai \
+            --hidden-import requests \
+            --hidden-import tqdm \
+            --hidden-import tenacity \
+            --hidden-import cv2 \
+            --hidden-import PIL \
+            --exclude-module tkinter \
+            --exclude-module matplotlib \
+            --exclude-module notebook \
+            --exclude-module jupyter \
+            main.py
+
+      # 5. 创建 .app 结构
+      - name: Create .app bundle
+        run: |
+          APP_DIR="dist/PDF Translator.app"
+          mkdir -p "$APP_DIR/Contents/MacOS"
+          mkdir -p "$APP_DIR/Contents/Resources"
+          
+          # 复制 PyInstaller 输出
+          cp -r "pdf_translator_app/dist/PDF Translator/"* "$APP_DIR/Contents/MacOS/"
+          
+          # 创建 Info.plist
+          cat > "$APP_DIR/Contents/Info.plist" << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key>
+              <string>PDF Translator</string>
+              <key>CFBundleDisplayName</key>
+              <string>PDF Translator</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.alter.pdftranslator</string>
+              <key>CFBundleVersion</key>
+              <string>1.0.0</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0.0</string>
+              <key>CFBundleExecutable</key>
+              <string>PDF Translator</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+
+      # 6. 打包 DMG
+      - name: Create DMG
+        run: |
+          # 创建临时目录
+          DMG_DIR="dmg_staging"
+          rm -rf "$DMG_DIR"
+          mkdir -p "$DMG_DIR"
+          
+          # 复制 .app
+          cp -r "dist/PDF Translator.app" "$DMG_DIR/"
+          
+          # 创建 Applications 快捷方式
+          ln -sf /Applications "$DMG_DIR/Applications"
+          
+          # 用 hdiutil 创建 DMG
+          hdiutil create \
+            -volname "PDF Translator" \
+            -srcfolder "$DMG_DIR" \
+            -ov \
+            -format UDZO \
+            "PDF-Translator-macOS.dmg"
+
+      # 7. 上传产物
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: PDF-Translator-macOS
+          path: PDF-Translator-macOS.dmg
+          retention-days: 90
+
+      # 8. 如果打 tag，自动创建 Release
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PDF-Translator-macOS.dmg
+          generate_release_notes: true
