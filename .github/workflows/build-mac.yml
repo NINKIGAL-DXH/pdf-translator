@@ -16,14 +16,13 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install dependencies
+      - name: Install
         run: |
           python -m pip install --upgrade pip
           python -m pip install flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc pyinstaller
 
-      - name: Build
+      - name: PyInstaller
         run: |
-          cd pdf_translator_app
           pyinstaller --noconfirm --onedir --windowed \
             --name "PDF Translator" \
             --add-data "templates:templates" \
@@ -37,14 +36,13 @@ jobs:
             --hidden-import babeldoc --hidden-import babeldoc.assets --hidden-import babeldoc.assets.assets \
             --hidden-import onnxruntime --hidden-import numpy --hidden-import openai \
             --hidden-import requests --hidden-import tqdm --hidden-import tenacity \
-            --hidden-import cv2 --hidden-import PIL --hidden-import PIL.Image \
             --exclude-module tkinter --exclude-module matplotlib \
             main.py
 
-      - name: Package .app
+      - name: Package
         run: |
           APP="dist/PDF Translator.app"
-          SRC="pdf_translator_app/dist/PDF Translator"
+          SRC="dist/PDF Translator"
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
           cp -r "$SRC/"* "$APP/Contents/MacOS/"
           cat > "$APP/Contents/Info.plist" << 'EOF'
