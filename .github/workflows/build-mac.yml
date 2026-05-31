@@ -16,14 +16,12 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Create venv and install deps
+      - name: Install deps to local dir
         run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install --upgrade pip
-          pip install flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc
-          echo "=== Venv size ==="
-          du -sh venv
+          mkdir -p packages
+          pip install --target=packages flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc
+          echo "=== Packages size ==="
+          du -sh packages
 
       - name: Build .app
         run: |
@@ -32,9 +30,10 @@ jobs:
           mkdir -p "$APP/Contents/Resources/app"
           mkdir -p "$APP/Contents/Resources/app/templates"
           mkdir -p "$APP/Contents/Resources/app/pdf2zh"
+          mkdir -p "$APP/Contents/Resources/packages"
           
-          # Copy venv into app
-          cp -r venv "$APP/Contents/Resources/venv"
+          # Copy packages
+          cp -r packages/* "$APP/Contents/Resources/packages/"
           
           # Copy app files
           cp app.py "$APP/Contents/Resources/app/"
@@ -56,24 +55,36 @@ jobs:
           </dict></plist>
           EOF
           
-          # Launcher script - uses bundled venv
+          # Launcher - uses system Python with bundled packages
           cat > "$APP/Contents/MacOS/launcher" << 'LAUNCHER'
           #!/bin/bash
           DIR="$(cd "$(dirname "$0")/.." && pwd)"
-          VENV="$DIR/Resources/venv"
           APP_DIR="$DIR/Resources/app"
+          PKG_DIR="$DIR/Resources/packages"
           
-          # Use bundled Python
-          PYTHON="$VENV/bin/python"
-          if [ ! -f "$PYTHON" ]; then
-            osascript -e 'display dialog "Python not found in bundle" buttons {"OK"} default button "OK" with icon stop'
+          # Find any Python 3
+          PYTHON=""
+          for cmd in python3 python /usr/bin/python3; do
+            if command -v "$cmd" > /dev/null 2>&1; then
+              ver=$("$cmd" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
+              major=$(echo "$ver" | cut -d. -f1)
+              if [ "$major" = "3" ]; then
+                PYTHON="$cmd"
+                break
+              fi
+            fi
+          done
+          
+          if [ -z "$PYTHON" ]; then
+            osascript -e 'display dialog "需要安装 Python 3\n\nbrew install python" buttons {"OK"} default button "OK" with icon stop'
             exit 1
           fi
           
-          export PYTHONPATH="$APP_DIR:$APP_DIR/pdf2zh:$PYTHONPATH"
+          # Set PYTHONPATH to include bundled packages
+          export PYTHONPATH="$APP_DIR:$APP_DIR/pdf2zh:$PKG_DIR:$PYTHONPATH"
           export PYTHONIOENCODING=utf-8
           
-          # If port already in use, just open browser
+          # If port in use, just open browser
           if lsof -Pi :5000 -sTCP:LISTEN -t >/dev/null 2>&1; then
             open http://localhost:5000
             exit 0
@@ -92,10 +103,7 @@ jobs:
             sleep 1
           done
           
-          # Open browser
           open http://localhost:5000
-          
-          # Keep alive
           wait $SERVER_PID
           LAUNCHER
           chmod +x "$APP/Contents/MacOS/launcher"
