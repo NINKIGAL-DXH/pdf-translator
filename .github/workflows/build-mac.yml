@@ -16,106 +16,67 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install deps to local dir
+      - name: Install dependencies
         run: |
-          mkdir -p packages
-          pip install --target=packages flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc
-          echo "=== Packages size ==="
-          du -sh packages
+          python -m pip install --upgrade pip
+          python -m pip install flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc pyinstaller
 
-      - name: Build .app
+      - name: PyInstaller (no --strip)
+        run: |
+          pyinstaller --noconfirm --onedir --windowed \
+            --name "PDF Translator" \
+            --add-data "templates:templates" \
+            --add-data "pdf2zh:pdf2zh" \
+            --hidden-import flask --hidden-import pymupdf --hidden-import fitz \
+            --hidden-import pdf2zh --hidden-import pdf2zh.high_level --hidden-import pdf2zh.translator \
+            --hidden-import pdf2zh.converter --hidden-import pdf2zh.doclayout --hidden-import pdf2zh.config \
+            --hidden-import pdf2zh.cache --hidden-import pdf2zh.pdfinterp --hidden-import pdf2zh.backend \
+            --hidden-import pdf2zh.kernel --hidden-import pdf2zh.pdf2zh \
+            --hidden-import babeldoc --hidden-import babeldoc.assets --hidden-import babeldoc.assets.assets \
+            --hidden-import onnxruntime --hidden-import numpy --hidden-import openai \
+            --hidden-import requests --hidden-import tqdm --hidden-import tenacity \
+            --exclude-module tkinter --exclude-module matplotlib \
+            main.py
+
+      - name: Package .app
         run: |
           APP="dist/PDF Translator.app"
-          mkdir -p "$APP/Contents/MacOS"
-          mkdir -p "$APP/Contents/Resources/app"
-          mkdir -p "$APP/Contents/Resources/app/templates"
-          mkdir -p "$APP/Contents/Resources/app/pdf2zh"
-          mkdir -p "$APP/Contents/Resources/packages"
-          
-          # Copy packages
-          cp -r packages/* "$APP/Contents/Resources/packages/"
-          
-          # Copy app files
-          cp app.py "$APP/Contents/Resources/app/"
-          cp -r templates/* "$APP/Contents/Resources/app/templates/"
-          cp -r pdf2zh/* "$APP/Contents/Resources/app/pdf2zh/"
-          
-          # Info.plist
+          SRC="dist/PDF Translator"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          cp -r "$SRC/"* "$APP/Contents/MacOS/"
           cat > "$APP/Contents/Info.plist" << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict>
           <key>CFBundleName</key><string>PDF Translator</string>
-          <key>CFBundleDisplayName</key><string>PDF Translator</string>
-          <key>CFBundleIdentifier</key><string>com.alter.pdftranslator</string>
-          <key>CFBundleVersion</key><string>1.0.0</string>
-          <key>CFBundleExecutable</key><string>launcher</string>
+          <key>CFBundleExecutable</key><string>PDF Translator</string>
           <key>CFBundlePackageType</key><string>APPL</string>
           <key>NSHighResolutionCapable</key><true/>
           </dict></plist>
           EOF
+
+      - name: Ad-hoc sign
+        run: |
+          # Remove files that confuse codesign
+          find "dist/PDF Translator.app" -name "*.dist-info" -type d -exec rm -rf {} + 2>/dev/null || true
+          find "dist/PDF Translator.app" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
           
-          # Launcher - uses system Python with bundled packages
-          cat > "$APP/Contents/MacOS/launcher" << 'LAUNCHER'
-          #!/bin/bash
-          DIR="$(cd "$(dirname "$0")/.." && pwd)"
-          APP_DIR="$DIR/Resources/app"
-          PKG_DIR="$DIR/Resources/packages"
+          # Sign individual binaries first, then bundle
+          find "dist/PDF Translator.app" -name "*.dylib" -exec codesign --force --sign - {} \; 2>/dev/null || true
+          find "dist/PDF Translator.app" -name "*.so" -exec codesign --force --sign - {} \; 2>/dev/null || true
           
-          # Find any Python 3
-          PYTHON=""
-          for cmd in python3 python /usr/bin/python3; do
-            if command -v "$cmd" > /dev/null 2>&1; then
-              ver=$("$cmd" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
-              major=$(echo "$ver" | cut -d. -f1)
-              if [ "$major" = "3" ]; then
-                PYTHON="$cmd"
-                break
-              fi
-            fi
-          done
+          # Sign the main executable
+          codesign --force --sign - "dist/PDF Translator.app/Contents/MacOS/PDF Translator" 2>/dev/null || true
           
-          if [ -z "$PYTHON" ]; then
-            osascript -e 'display dialog "需要安装 Python 3\n\nbrew install python" buttons {"OK"} default button "OK" with icon stop'
-            exit 1
-          fi
+          # Sign the bundle
+          codesign --force --sign - "dist/PDF Translator.app" || true
           
-          # Set PYTHONPATH to include bundled packages
-          export PYTHONPATH="$APP_DIR:$APP_DIR/pdf2zh:$PKG_DIR:$PYTHONPATH"
-          export PYTHONIOENCODING=utf-8
-          
-          # If port in use, just open browser
-          if lsof -Pi :5000 -sTCP:LISTEN -t >/dev/null 2>&1; then
-            open http://localhost:5000
-            exit 0
-          fi
-          
-          # Start server
-          cd "$APP_DIR"
-          $PYTHON app.py &
-          SERVER_PID=$!
-          
-          # Wait for server
-          for i in 1 2 3 4 5 6 7 8 9 10; do
-            if curl -s http://localhost:5000 > /dev/null 2>&1; then
-              break
-            fi
-            sleep 1
-          done
-          
-          open http://localhost:5000
-          wait $SERVER_PID
-          LAUNCHER
-          chmod +x "$APP/Contents/MacOS/launcher"
-          
-          echo "=== App size ==="
-          du -sh "$APP"
+          echo "=== Verify signature ==="
+          codesign -vvv "dist/PDF Translator.app" 2>&1 || true
 
       - name: Create DMG
         run: |
-          mkdir -p dmg
-          cp -r "dist/PDF Translator.app" dmg/
-          ln -sf /Applications dmg/Applications
+          mkdir -p dmg && cp -r "dist/PDF Translator.app" dmg/ && ln -sf /Applications dmg/Applications
           hdiutil create -volname "PDF Translator" -srcfolder dmg -ov -format UDZO PDF-Translator-macOS.dmg
           echo "=== DMG size ==="
           du -sh PDF-Translator-macOS.dmg
