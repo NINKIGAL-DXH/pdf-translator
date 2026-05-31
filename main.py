@@ -30,7 +30,7 @@ os.environ['OPENAILIKED_API_KEY'] = 'not-needed'
 
 def open_browser():
     time.sleep(5)
-    webbrowser.open('http://localhost:5000')
+    webbrowser.open('http://localhost:5050')
 
 def main():
     # Open browser
@@ -45,7 +45,7 @@ def main():
     # Wait a moment for port to be free
     time.sleep(1)
     
-    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=5050, debug=False, use_reloader=False)
 
 if __name__ == '__main__':
     main()
