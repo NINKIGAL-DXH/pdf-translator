@@ -38,7 +38,7 @@ jobs:
             --exclude-module tkinter --exclude-module matplotlib \
             main.py
 
-      - name: Package .app
+      - name: Package .app (NO signing)
         run: |
           APP="dist/PDF Translator.app"
           SRC="dist/PDF Translator"
@@ -54,32 +54,15 @@ jobs:
           <key>NSHighResolutionCapable</key><true/>
           </dict></plist>
           EOF
-
-      - name: Ad-hoc sign
-        run: |
-          # Clean up files that confuse codesign
-          find "dist/PDF Translator.app" -name "*.dist-info" -type d -exec rm -rf {} + 2>/dev/null || true
-          find "dist/PDF Translator.app" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
-          
-          # Sign all dylibs and .so files individually first
-          find "dist/PDF Translator.app" -name "*.dylib" -exec codesign --force --sign - {} \; 2>/dev/null || true
-          find "dist/PDF Translator.app" -name "*.so" -exec codesign --force --sign - {} \; 2>/dev/null || true
-          
-          # Sign the main executable
-          codesign --force --sign - "dist/PDF Translator.app/Contents/MacOS/PDF Translator" 2>/dev/null || true
-          
-          # Sign the entire bundle
-          codesign --force --sign - "dist/PDF Translator.app" 2>/dev/null || true
-          
-          echo "=== Verify ==="
-          codesign -dvvv "dist/PDF Translator.app" 2>&1 | head -5 || true
+          echo "=== App structure ==="
+          ls -la "$APP/Contents/MacOS/" | head -10
+          echo "=== Templates? ==="
+          ls "$APP/Contents/MacOS/templates/" 2>/dev/null || ls "$APP/Contents/MacOS/_internal/templates/" 2>/dev/null || echo "NOT FOUND"
 
       - name: Create DMG
         run: |
           mkdir -p dmg && cp -r "dist/PDF Translator.app" dmg/ && ln -sf /Applications dmg/Applications
           hdiutil create -volname "PDF Translator" -srcfolder dmg -ov -format UDZO PDF-Translator-macOS.dmg
-          echo "=== DMG size ==="
-          du -sh PDF-Translator-macOS.dmg
 
       - uses: actions/upload-artifact@v4
         with:
