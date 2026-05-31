@@ -88,7 +88,9 @@ jobs:
 
       - name: Code sign (ad-hoc)
         run: |
-          codesign --deep --force --sign - "dist/PDF Translator.app"
+          # Remove .dist-info dirs that confuse codesign
+          find "dist/PDF Translator.app" -name "*.dist-info" -type d -exec rm -rf {} + 2>/dev/null || true
+          codesign --force --sign - "dist/PDF Translator.app"
           echo "Signed OK"
 
       - name: DMG with max compression
