@@ -86,14 +86,7 @@ jobs:
           </dict></plist>
           EOF
 
-      - name: Code sign (ad-hoc)
-        run: |
-          # Remove .dist-info dirs that confuse codesign
-          find "dist/PDF Translator.app" -name "*.dist-info" -type d -exec rm -rf {} + 2>/dev/null || true
-          codesign --force --sign - "dist/PDF Translator.app"
-          echo "Signed OK"
-
-      - name: DMG with max compression
+      - name: DMG
         run: |
           mkdir -p dmg && cp -r "dist/PDF Translator.app" dmg/ && ln -sf /Applications dmg/Applications
           hdiutil create -volname "PDF Translator" -srcfolder dmg -ov -format UDZO "PDF-Translator-macOS.dmg"
