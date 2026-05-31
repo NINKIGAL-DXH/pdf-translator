@@ -1,41 +1,68 @@
-name: Build macOS DMG
+name: Build macOS ZIP
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-dmg:
+  build:
     runs-on: macos-latest
     
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Create DMG (no build, just package)
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install
         run: |
-          # Create staging directory
-          STAGING="staging"
-          rm -rf "$STAGING"
-          mkdir -p "$STAGING/PDF Translator"
-          
-          # Copy all source files
-          cp app.py "$STAGING/PDF Translator/"
-          cp start.command "$STAGING/PDF Translator/"
-          cp -r templates "$STAGING/PDF Translator/"
-          cp -r pdf2zh "$STAGING/PDF Translator/"
-          
-          # Make start.command executable
-          chmod +x "$STAGING/PDF Translator/start.command"
-          
-          # Add Applications link
-          ln -sf /Applications "$STAGING/Applications"
-          
-          # Create DMG
-          hdiutil create -volname "PDF Translator" -srcfolder "$STAGING" -ov -format UDZO PDF-Translator-macOS.dmg
-          echo "=== DMG size ==="
-          du -sh PDF-Translator-macOS.dmg
+          python -m pip install --upgrade pip
+          python -m pip install flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc pyinstaller
+
+      - name: PyInstaller
+        run: |
+          pyinstaller --noconfirm --onedir --windowed \
+            --name "PDF Translator" \
+            --add-data "templates:templates" \
+            --add-data "pdf2zh:pdf2zh" \
+            --hidden-import flask --hidden-import pymupdf --hidden-import fitz \
+            --hidden-import pdf2zh --hidden-import pdf2zh.high_level --hidden-import pdf2zh.translator \
+            --hidden-import pdf2zh.converter --hidden-import pdf2zh.doclayout --hidden-import pdf2zh.config \
+            --hidden-import pdf2zh.cache --hidden-import pdf2zh.pdfinterp --hidden-import pdf2zh.backend \
+            --hidden-import pdf2zh.kernel --hidden-import pdf2zh.pdf2zh \
+            --hidden-import babeldoc --hidden-import babeldoc.assets --hidden-import babeldoc.assets.assets \
+            --hidden-import onnxruntime --hidden-import numpy --hidden-import openai \
+            --hidden-import requests --hidden-import tqdm --hidden-import tenacity \
+            --exclude-module tkinter --exclude-module matplotlib \
+            main.py
+
+      - name: Create .app
+        run: |
+          APP="dist/PDF Translator.app"
+          SRC="dist/PDF Translator"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          cp -r "$SRC/"* "$APP/Contents/MacOS/"
+          cat > "$APP/Contents/Info.plist" << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>CFBundleName</key><string>PDF Translator</string>
+          <key>CFBundleExecutable</key><string>PDF Translator</string>
+          <key>CFBundlePackageType</key><string>APPL</string>
+          <key>NSHighResolutionCapable</key><true/>
+          </dict></plist>
+          EOF
+
+      - name: Create ZIP (not DMG)
+        run: |
+          cd dist
+          ditto -c -k --sequesterRsrc --keepParent "PDF Translator.app" "PDF-Translator-macOS.zip"
+          echo "=== ZIP size ==="
+          du -sh "PDF-Translator-macOS.zip"
 
       - uses: actions/upload-artifact@v4
         with:
           name: PDF-Translator-macOS
-          path: PDF-Translator-macOS.dmg
+          path: dist/PDF-Translator-macOS.zip
