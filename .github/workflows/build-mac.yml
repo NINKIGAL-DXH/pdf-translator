@@ -43,7 +43,6 @@ jobs:
       - name: PyInstaller
         run: |
           pyinstaller --noconfirm --onedir --windowed \
-            --strip \
             --name "PDF Translator" \
             --add-data "templates:templates" \
             --add-data "pdf2zh:pdf2zh" \
@@ -90,7 +89,7 @@ jobs:
       - name: DMG with max compression
         run: |
           mkdir -p dmg && cp -r "dist/PDF Translator.app" dmg/ && ln -sf /Applications dmg/Applications
-          hdiutil create -volname "PDF Translator" -srcfolder dmg -ov -format ULFO "PDF-Translator-macOS.dmg"
+          hdiutil create -volname "PDF Translator" -srcfolder dmg -ov -format UDZO "PDF-Translator-macOS.dmg"
           echo "=== DMG size ==="
           du -sh "PDF-Translator-macOS.dmg"
 
