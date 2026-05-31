@@ -38,11 +38,13 @@ for _p in [_BASE, os.path.join(_BASE, 'pdf2zh')]:
 from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
 from werkzeug.utils import secure_filename
 
-app = Flask(__name__, static_folder='static', template_folder='templates')
+app = Flask(__name__,
+    static_folder=os.path.join(_BASE, 'static'),
+    template_folder=os.path.join(_BASE, 'templates'))
 
 # === Config ===
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
-OUTPUT_FOLDER = os.path.join(os.path.dirname(__file__), 'outputs')
+UPLOAD_FOLDER = os.path.join(_BASE, 'uploads')
+OUTPUT_FOLDER = os.path.join(_BASE, 'outputs')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
