@@ -16,23 +16,34 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install
+      - name: Install optimized dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc pyinstaller
+          # Use onnxruntime-silicon for Apple Silicon (smaller)
+          python -m pip install flask pymupdf openai requests tqdm tenacity numpy babeldoc pyinstaller
+          python -m pip install onnxruntime-silicon || python -m pip install onnxruntime
 
-      - name: Verify files exist
+      - name: Strip large unnecessary files
         run: |
-          echo "=== Root files ==="
-          ls -la *.py
-          echo "=== Templates ==="
-          ls -la templates/
-          echo "=== PDF2ZH ==="
-          ls pdf2zh/*.py | head -5
+          SITE=$(python -c "import site; print(site.getsitepackages()[0])")
+          echo "Site: $SITE"
+          # Remove tests, docs, examples from packages
+          find "$SITE" -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
+          find "$SITE" -type d -name "test" -exec rm -rf {} + 2>/dev/null || true
+          find "$SITE" -type d -name "examples" -exec rm -rf {} + 2>/dev/null || true
+          find "$SITE" -type d -name "doc" -exec rm -rf {} + 2>/dev/null || true
+          find "$SITE" -type d -name "docs" -exec rm -rf {} + 2>/dev/null || true
+          # Remove .pyc __pycache__
+          find "$SITE" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+          # Remove large unused numpy/scipy test data
+          find "$SITE" -name "*.npz" -size +1M -delete 2>/dev/null || true
+          # Show size
+          du -sh "$SITE"
 
       - name: PyInstaller
         run: |
           pyinstaller --noconfirm --onedir --windowed \
+            --strip \
             --name "PDF Translator" \
             --add-data "templates:templates" \
             --add-data "pdf2zh:pdf2zh" \
@@ -45,16 +56,19 @@ jobs:
             --hidden-import onnxruntime --hidden-import numpy --hidden-import openai \
             --hidden-import requests --hidden-import tqdm --hidden-import tenacity \
             --exclude-module tkinter --exclude-module matplotlib \
+            --exclude-module unittest --exclude-module email \
+            --exclude-module xml --exclude-module pydoc \
+            --exclude-module lib2to3 --exclude-module ensurepip \
             main.py
 
-      - name: Verify build output
+      - name: Clean dist
         run: |
-          echo "=== dist contents ==="
-          ls -la "dist/PDF Translator/"
-          echo "=== templates in dist? ==="
-          ls "dist/PDF Translator/templates/" 2>/dev/null || echo "NO TEMPLATES FOUND"
-          echo "=== _internal? ==="
-          ls "dist/PDF Translator/_internal/templates/" 2>/dev/null || echo "No _internal/templates"
+          # Remove unnecessary files from dist
+          find "dist/PDF Translator/_internal" -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
+          find "dist/PDF Translator/_internal" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+          find "dist/PDF Translator/_internal" -name "*.pyc" -delete 2>/dev/null || true
+          echo "=== Final size ==="
+          du -sh "dist/PDF Translator"
 
       - name: Package
         run: |
@@ -73,10 +87,12 @@ jobs:
           </dict></plist>
           EOF
 
-      - name: DMG
+      - name: DMG with max compression
         run: |
           mkdir -p dmg && cp -r "dist/PDF Translator.app" dmg/ && ln -sf /Applications dmg/Applications
-          hdiutil create -volname "PDF Translator" -srcfolder dmg -ov -format UDZO PDF-Translator-macOS.dmg
+          hdiutil create -volname "PDF Translator" -srcfolder dmg -ov -format ULFO "PDF-Translator-macOS.dmg"
+          echo "=== DMG size ==="
+          du -sh "PDF-Translator-macOS.dmg"
 
       - uses: actions/upload-artifact@v4
         with:
