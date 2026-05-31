@@ -312,6 +312,6 @@ def api_history():
 if __name__ == '__main__':
     print("=" * 50)
     print("  PDF Translator — Alter's Edition")
-    print("  http://localhost:5000")
+    print("  http://localhost:5050")
     print("=" * 50)
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=5050, debug=False)
