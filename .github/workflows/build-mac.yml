@@ -86,6 +86,11 @@ jobs:
           </dict></plist>
           EOF
 
+      - name: Code sign (ad-hoc)
+        run: |
+          codesign --deep --force --sign - "dist/PDF Translator.app"
+          echo "Signed OK"
+
       - name: DMG with max compression
         run: |
           mkdir -p dmg && cp -r "dist/PDF Translator.app" dmg/ && ln -sf /Applications dmg/Applications
