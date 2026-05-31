@@ -21,6 +21,15 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc pyinstaller
 
+      - name: Verify files exist
+        run: |
+          echo "=== Root files ==="
+          ls -la *.py
+          echo "=== Templates ==="
+          ls -la templates/
+          echo "=== PDF2ZH ==="
+          ls pdf2zh/*.py | head -5
+
       - name: PyInstaller
         run: |
           pyinstaller --noconfirm --onedir --windowed \
@@ -37,6 +46,15 @@ jobs:
             --hidden-import requests --hidden-import tqdm --hidden-import tenacity \
             --exclude-module tkinter --exclude-module matplotlib \
             main.py
+
+      - name: Verify build output
+        run: |
+          echo "=== dist contents ==="
+          ls -la "dist/PDF Translator/"
+          echo "=== templates in dist? ==="
+          ls "dist/PDF Translator/templates/" 2>/dev/null || echo "NO TEMPLATES FOUND"
+          echo "=== _internal? ==="
+          ls "dist/PDF Translator/_internal/templates/" 2>/dev/null || echo "No _internal/templates"
 
       - name: Package
         run: |
