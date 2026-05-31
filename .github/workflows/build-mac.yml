@@ -16,82 +16,101 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install optimized dependencies
+      - name: Create venv and install deps
         run: |
-          python -m pip install --upgrade pip
-          # Use onnxruntime-silicon for Apple Silicon (smaller)
-          python -m pip install flask pymupdf openai requests tqdm tenacity numpy babeldoc pyinstaller
-          python -m pip install onnxruntime-silicon || python -m pip install onnxruntime
+          python -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc
+          echo "=== Venv size ==="
+          du -sh venv
 
-      - name: Strip large unnecessary files
-        run: |
-          SITE=$(python -c "import site; print(site.getsitepackages()[0])")
-          echo "Site: $SITE"
-          # Remove tests, docs, examples from packages
-          find "$SITE" -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
-          find "$SITE" -type d -name "test" -exec rm -rf {} + 2>/dev/null || true
-          find "$SITE" -type d -name "examples" -exec rm -rf {} + 2>/dev/null || true
-          find "$SITE" -type d -name "doc" -exec rm -rf {} + 2>/dev/null || true
-          find "$SITE" -type d -name "docs" -exec rm -rf {} + 2>/dev/null || true
-          # Remove .pyc __pycache__
-          find "$SITE" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-          # Remove large unused numpy/scipy test data
-          find "$SITE" -name "*.npz" -size +1M -delete 2>/dev/null || true
-          # Show size
-          du -sh "$SITE"
-
-      - name: PyInstaller
-        run: |
-          pyinstaller --noconfirm --onedir --windowed \
-            --name "PDF Translator" \
-            --add-data "templates:templates" \
-            --add-data "pdf2zh:pdf2zh" \
-            --hidden-import flask --hidden-import pymupdf --hidden-import fitz \
-            --hidden-import pdf2zh --hidden-import pdf2zh.high_level --hidden-import pdf2zh.translator \
-            --hidden-import pdf2zh.converter --hidden-import pdf2zh.doclayout --hidden-import pdf2zh.config \
-            --hidden-import pdf2zh.cache --hidden-import pdf2zh.pdfinterp --hidden-import pdf2zh.backend \
-            --hidden-import pdf2zh.kernel --hidden-import pdf2zh.pdf2zh \
-            --hidden-import babeldoc --hidden-import babeldoc.assets --hidden-import babeldoc.assets.assets \
-            --hidden-import onnxruntime --hidden-import numpy --hidden-import openai \
-            --hidden-import requests --hidden-import tqdm --hidden-import tenacity \
-            --exclude-module tkinter --exclude-module matplotlib \
-            --exclude-module unittest --exclude-module email \
-            --exclude-module xml --exclude-module pydoc \
-            --exclude-module lib2to3 --exclude-module ensurepip \
-            main.py
-
-      - name: Clean dist
-        run: |
-          # Remove unnecessary files from dist
-          find "dist/PDF Translator/_internal" -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
-          find "dist/PDF Translator/_internal" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-          find "dist/PDF Translator/_internal" -name "*.pyc" -delete 2>/dev/null || true
-          echo "=== Final size ==="
-          du -sh "dist/PDF Translator"
-
-      - name: Package
+      - name: Build .app
         run: |
           APP="dist/PDF Translator.app"
-          SRC="dist/PDF Translator"
-          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-          cp -r "$SRC/"* "$APP/Contents/MacOS/"
+          mkdir -p "$APP/Contents/MacOS"
+          mkdir -p "$APP/Contents/Resources/app"
+          mkdir -p "$APP/Contents/Resources/app/templates"
+          mkdir -p "$APP/Contents/Resources/app/pdf2zh"
+          
+          # Copy venv into app
+          cp -r venv "$APP/Contents/Resources/venv"
+          
+          # Copy app files
+          cp app.py "$APP/Contents/Resources/app/"
+          cp -r templates/* "$APP/Contents/Resources/app/templates/"
+          cp -r pdf2zh/* "$APP/Contents/Resources/app/pdf2zh/"
+          
+          # Info.plist
           cat > "$APP/Contents/Info.plist" << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict>
           <key>CFBundleName</key><string>PDF Translator</string>
-          <key>CFBundleExecutable</key><string>PDF Translator</string>
+          <key>CFBundleDisplayName</key><string>PDF Translator</string>
+          <key>CFBundleIdentifier</key><string>com.alter.pdftranslator</string>
+          <key>CFBundleVersion</key><string>1.0.0</string>
+          <key>CFBundleExecutable</key><string>launcher</string>
           <key>CFBundlePackageType</key><string>APPL</string>
           <key>NSHighResolutionCapable</key><true/>
           </dict></plist>
           EOF
+          
+          # Launcher script - uses bundled venv
+          cat > "$APP/Contents/MacOS/launcher" << 'LAUNCHER'
+          #!/bin/bash
+          DIR="$(cd "$(dirname "$0")/.." && pwd)"
+          VENV="$DIR/Resources/venv"
+          APP_DIR="$DIR/Resources/app"
+          
+          # Use bundled Python
+          PYTHON="$VENV/bin/python"
+          if [ ! -f "$PYTHON" ]; then
+            osascript -e 'display dialog "Python not found in bundle" buttons {"OK"} default button "OK" with icon stop'
+            exit 1
+          fi
+          
+          export PYTHONPATH="$APP_DIR:$APP_DIR/pdf2zh:$PYTHONPATH"
+          export PYTHONIOENCODING=utf-8
+          
+          # If port already in use, just open browser
+          if lsof -Pi :5000 -sTCP:LISTEN -t >/dev/null 2>&1; then
+            open http://localhost:5000
+            exit 0
+          fi
+          
+          # Start server
+          cd "$APP_DIR"
+          $PYTHON app.py &
+          SERVER_PID=$!
+          
+          # Wait for server
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -s http://localhost:5000 > /dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          
+          # Open browser
+          open http://localhost:5000
+          
+          # Keep alive
+          wait $SERVER_PID
+          LAUNCHER
+          chmod +x "$APP/Contents/MacOS/launcher"
+          
+          echo "=== App size ==="
+          du -sh "$APP"
 
-      - name: DMG
+      - name: Create DMG
         run: |
-          mkdir -p dmg && cp -r "dist/PDF Translator.app" dmg/ && ln -sf /Applications dmg/Applications
-          hdiutil create -volname "PDF Translator" -srcfolder dmg -ov -format UDZO "PDF-Translator-macOS.dmg"
+          mkdir -p dmg
+          cp -r "dist/PDF Translator.app" dmg/
+          ln -sf /Applications dmg/Applications
+          hdiutil create -volname "PDF Translator" -srcfolder dmg -ov -format UDZO PDF-Translator-macOS.dmg
           echo "=== DMG size ==="
-          du -sh "PDF-Translator-macOS.dmg"
+          du -sh PDF-Translator-macOS.dmg
 
       - uses: actions/upload-artifact@v4
         with:
