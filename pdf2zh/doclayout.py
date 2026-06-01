@@ -1,11 +1,36 @@
 import abc
 import logging
 import os
+import hashlib
+from pathlib import Path
 
 import cv2
 import numpy as np
 import ast
-from babeldoc.assets.assets import get_doclayout_onnx_model_path
+
+# ONNX model URL (from babeldoc, direct download to avoid babeldoc dependency)
+_DOC_LAYOUT_MODEL_URL = "https://huggingface.co/wybxc/DocLayout-YOLO-DocStructBench-onnx/resolve/main/doclayout_yolo_docstructbench_imgsz1024.onnx"
+_DOC_LAYOUT_MODEL_SHA = "60be061226930524958b5465c8c04af3d7c03bcb0beb66454f5da9f792e3cf2a"
+
+
+def get_doclayout_onnx_model_path():
+    """Download and return the ONNX model path, without babeldoc."""
+    cache_dir = Path.home() / ".cache" / "pdf_translator"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    model_path = cache_dir / "doclayout_yolo_docstructbench_imgsz1024.onnx"
+    
+    if model_path.exists():
+        return str(model_path)
+    
+    print("Downloading DocLayout-YOLO model...")
+    import requests
+    r = requests.get(_DOC_LAYOUT_MODEL_URL, stream=True)
+    r.raise_for_status()
+    with open(model_path, 'wb') as f:
+        for chunk in r.iter_content(chunk_size=8192):
+            f.write(chunk)
+    print(f"Model saved to {model_path}")
+    return str(model_path)
 
 try:
     import onnx
