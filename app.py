@@ -117,8 +117,7 @@ def translate_pdf(pdf_path, output_dir, pages=None):
         # Import after setting env vars
         import pymupdf
         from pdf2zh.high_level import translate
-        from pdf2zh.doclayout import OnnxModel
-        from babeldoc.assets.assets import get_doclayout_onnx_model_path
+        from pdf2zh.doclayout import OnnxModel, get_doclayout_onnx_model_path
         
         # Load layout model
         model_path = get_doclayout_onnx_model_path()
