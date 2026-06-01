@@ -1,88 +1,104 @@
 #!/bin/bash
 # ============================================================
 # PDF Translator — Alter's Edition
-# 双击运行此文件即可启动
+# macOS Launcher (参考 pdf2zhByGemini 的 start-mac.command)
 # ============================================================
 
 cd "$(dirname "$0")"
+clear
 
-echo "=========================================="
-echo " PDF Translator — Alter's Edition"
-echo "=========================================="
+echo "=========================================================="
+echo "      PDF Translator — Alter's Edition"
+echo "=========================================================="
 echo ""
 
-# Find Python
+# Step 1: Check for Python 3 (need < 3.14 for onnxruntime)
 PYTHON=""
-for cmd in python3.12 python3 python /usr/bin/python3; do
+for cmd in python3.13 python3.12 python3.11 python3; do
     if command -v "$cmd" > /dev/null 2>&1; then
         ver=$("$cmd" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
         major=$(echo "$ver" | cut -d. -f1)
         minor=$(echo "$ver" | cut -d. -f2)
-        if [ "$major" = "3" ]; then
+        if [ "$major" = "3" ] && [ "$minor" -lt 14 ] 2>/dev/null; then
             PYTHON="$cmd"
-            echo "Found Python: $cmd ($ver)"
             break
         fi
     fi
 done
 
 if [ -z "$PYTHON" ]; then
-    echo "ERROR: Python 3 not found!"
-    echo "Please install: brew install python"
-    read -p "Press Enter to exit..."
-    exit 1
-fi
-
-# Check Python version (need < 3.14 for babeldoc)
-minor=$(echo "$ver" | cut -d. -f2)
-if [ "$minor" -ge 14 ] 2>/dev/null; then
+    echo "[!] Compatible Python not found (need 3.11-3.13)."
     echo ""
-    echo "WARNING: Python $ver detected. babeldoc requires Python < 3.14."
-    echo "Please install Python 3.12: brew install python@3.12"
-    echo "Then run: python3.12 start.sh"
-    read -p "Press Enter to exit..."
-    exit 1
+    echo "    Your system has: $(python3 --version 2>&1)"
+    echo "    This app requires Python 3.12 or 3.13."
+    echo ""
+    echo "    Attempting to install Python 3.12 via Homebrew..."
+    echo ""
+    
+    if command -v brew > /dev/null 2>&1; then
+        echo "[+] Homebrew found! Installing Python 3.12..."
+        brew install python@3.12
+        PYTHON="python3.12"
+    else
+        echo "[!] Homebrew not found."
+        echo ""
+        echo "    Option 1: Install Homebrew first:"
+        echo '    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+        echo ""
+        echo "    Option 2: Download Python 3.12 directly:"
+        echo "    https://www.python.org/downloads/macos/"
+        echo ""
+        echo "Press any key to open the Python download page, or CTRL+C to cancel..."
+        read -n 1 -r
+        open "https://www.python.org/downloads/macos/"
+        exit 1
+    fi
 fi
 
-# Check and install dependencies
+echo "[+] Using Python: $PYTHON ($($PYTHON --version 2>&1))"
 echo ""
-echo "Checking dependencies..."
+
+# Step 2: Install dependencies
+echo "[+] Checking dependencies..."
 MISSING=""
 for pkg in flask pymupdf openai requests tqdm tenacity numpy onnxruntime; do
-    imp="$pkg"; [ "$pkg" = "pymupdf" ] && imp="fitz"
+    imp="$pkg"
+    [ "$pkg" = "pymupdf" ] && imp="fitz"
     if ! $PYTHON -c "import $imp" 2>/dev/null; then
         MISSING="$MISSING $pkg"
     fi
 done
 
 if [ -n "$MISSING" ]; then
-    echo "Installing missing packages:$MISSING"
-    echo "(This may take a few minutes on first run...)"
+    echo "[+] Installing missing packages:$MISSING"
+    echo "    (This may take a few minutes on first run...)"
     $PYTHON -m pip install $MISSING --quiet
-    echo "Done!"
+    echo "[+] Done!"
 else
-    echo "All dependencies OK."
+    echo "[+] All dependencies OK."
 fi
+echo ""
 
-# Check port
-if lsof -Pi :5050 -sTCP:LISTEN -t >/dev/null 2>&1; then
-    echo ""
-    echo "Port 5050 is in use. Opening browser..."
-    open http://localhost:5050
+# Step 3: Check port
+PORT=5050
+if lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null 2>&1; then
+    echo "[!] Port $PORT is already in use."
+    echo "    Opening browser..."
+    open "http://localhost:$PORT"
     exit 0
 fi
 
-# Start
-echo ""
-echo "Starting PDF Translator..."
-echo "Browser will open at: http://localhost:5050"
-echo "Press Ctrl+C to stop."
+# Step 4: Start server
+echo "=========================================================="
+echo "  Starting PDF Translator..."
+echo "  Web GUI: http://localhost:$PORT"
+echo "  Keep this Terminal window open while using the app."
+echo "=========================================================="
 echo ""
 
 # Open browser after delay
-(sleep 3; open http://localhost:5050) &
+(sleep 3; open "http://localhost:$PORT") &
 
 # Run Flask
-cd "$(dirname "$0")"
 export PYTHONIOENCODING=utf-8
 $PYTHON app.py
