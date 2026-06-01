@@ -13,7 +13,7 @@ echo ""
 
 # Find Python
 PYTHON=""
-for cmd in python3 python /usr/bin/python3; do
+for cmd in python3.12 python3 python /usr/bin/python3; do
     if command -v "$cmd" > /dev/null 2>&1; then
         ver=$("$cmd" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
         major=$(echo "$ver" | cut -d. -f1)
@@ -48,7 +48,7 @@ fi
 echo ""
 echo "Checking dependencies..."
 MISSING=""
-for pkg in flask pymupdf openai requests tqdm tenacity numpy onnxruntime babeldoc; do
+for pkg in flask pymupdf openai requests tqdm tenacity numpy onnxruntime; do
     imp="$pkg"; [ "$pkg" = "pymupdf" ] && imp="fitz"
     if ! $PYTHON -c "import $imp" 2>/dev/null; then
         MISSING="$MISSING $pkg"
