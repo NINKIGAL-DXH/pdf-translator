@@ -3,7 +3,7 @@ PDF Translator — Alter's Edition
 基于 PDFMathTranslate 的本地 PDF 翻译工具
 
 用法: python app.py
-然后浏览器打开 http://localhost:5000
+然后浏览器打开 http://localhost:5050
 """
 import sys
 import os
